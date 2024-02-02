@@ -30,7 +30,11 @@ WebSocket.prototype.send = function(...args) {
           }
       }
       if (message.includes("gate_delta")) {
-          mapID = JSON.parse(message).p.r[0];
+          currentMapID = JSON.parse(message).p.r[0];
+          if(homeMapID == 0) {
+              console.log("set home Map to: ", currentMapID);
+              homeMapID = currentMapID;
+          }
       }
 
   })
@@ -54,6 +58,12 @@ function getBase() {
       var split = ene_id.split("_");
       base_id.push(parseInt(split[1]));
   }
+  for (const enemy of document.getElementsByClassName('enemy enemy_100')) {
+      if (enemy.classList.contains('air_base')) continue;
+      ene_id = enemy.id;
+      split = ene_id.split("_");
+      base_id.push(parseInt(split[1]));
+  }
   return base_id;
 }
 
@@ -66,7 +76,8 @@ var baseIds;
 var logging = false;
 var cycling = false;
 var notFull = ['carbon','fuel','steel','cement'];
-var mapID = 1;
+var homeMapID = 0;
+var currentMapID = 0;
 const validNames = ['carbon','fuel','steel','cement']
 window.currentProduction = '';
 
@@ -109,13 +120,13 @@ async function produce(resource, baseID) {
   if(resource == 'fuel') {
       resource = 'oil';
   }
-  console.log("try prducing ",resource, " with ", captchaXY);
+  console.log("try prducing ",resource, " with ", captchaXY, "on map: ", homeMapID);
   window.sockets[0].send(JSON.stringify({
       "a": 13,
       "c": 1,
       "p": {
           "c": "object.extract",
-          "r": mapID,
+          "r": homeMapID,
           "p": {
               "base_id": baseID,
               "name": resource,
@@ -187,6 +198,7 @@ function findContures(image) {
   grayImage.delete();
   contours.delete();
   hierarchy.delete();
+  largestCon.delete();
 
   return [cx, cy]
 }
@@ -200,14 +212,19 @@ async function readImage(imageSrc) {
   ctx.fillStyle = 'black';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(image, 0, 0);
-  //readImage
+
   return cv.imread('output', cv.IMREAD_UNCHANGED);
 }
 
 async function getNewestXY() {
-  while (latestCaptch == "" && cycle) {
-      console.log("no captcha found!");
-      alert("kein Captcha gefunden. Versuche einmal manuell Produktion zu starten")
+    var noCaptcha = 0;
+  while (cycle && (latestCaptch == "" || currentMapID != homeMapID)) {
+      console.log("no captcha found or not on homeMap");
+
+      if(latestCaptch == "") {
+          noCaptcha == 12 && alert("kein Captcha gefunden. Versuche einmal manuell Produktion zu starten");
+          noCaptcha++;
+      }
       timer = 0;
       await sleep(5000);
   }
@@ -215,6 +232,8 @@ async function getNewestXY() {
   latestXY = findContures(cvImg);
   solvedCaptchas = [latestCaptch, latestXY];
   latestCaptch = "";
+
+  cvImg.delete();
   return latestXY;
 }
 
