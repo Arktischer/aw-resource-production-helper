@@ -21,11 +21,11 @@ WebSocket.prototype.send = function(...args) {
       this.addEventListener('message', function(event) {
       const message = event.data;
 
-      if (message.includes("captha")) {
+      if (message.includes("captha") && latestCaptch == "") {
           const jsonObject = JSON.parse(message);
           if(jsonObject.a == 12) {
           latestCaptch = jsonObject.p.vl[0][2];
-          console.log("code received: ",latestCaptch);
+          console.log("code received: ");
           } else {
               console.log(jsonObject.p);
           }
@@ -139,6 +139,7 @@ async function produce(resource, baseID) {
 }
 
 async function sleep(ms) {
+    //console.log("start timer with (ms): ", ms);
   return await new Promise(resolve => {
       const sleeper = new Worker(workerUrl);
 
@@ -225,7 +226,7 @@ async function getNewestXY() {
           noCaptcha == 12 && alert("kein Captcha gefunden. Versuche einmal manuell Produktion zu starten");
           noCaptcha++;
       }
-      timer = 0;
+      resetTimer = true;
       await sleep(5000);
   }
   const cvImg = await readImage(latestCaptch);
@@ -250,12 +251,14 @@ async function produceAll(resourceName) {
 
 var cycle = true;
 var cyleFunction;
-var timer = 0;
+window.timer = 0;
 var cycles = 0;
+var resetTimer;
 
 async function startCycle(resourceName = 'carbon') {
   if(cycling) {
       console.log("cycle already running. Set cycling = false");
+      alert("Es wurde bereits eine Produktion gestartet. Wähle Produktion Stoppen, um etwas anderes zu Produzieren.")
       return;
   }
   notFull = ['carbon','fuel','steel','cement'];
@@ -268,9 +271,14 @@ async function startCycle(resourceName = 'carbon') {
   while (cycle) {
       checkResources();
       produceAll(window.currentProduction);
-      timer = 0;
-      while (timer < 310 && cycle) {
-          timer += await sleep(5000);
+      window.timer = 0;
+      while (window.timer < 305 && cycle) {
+          if(resetTimer) {
+              window.timer = 0;
+              resetTimer = false;
+          }
+          window.timer += await sleep(5000);
+          //console.log(window.timer);
       }
 
   }
