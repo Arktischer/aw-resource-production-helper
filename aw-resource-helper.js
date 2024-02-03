@@ -16,7 +16,8 @@ const originalSend = WebSocket.prototype.send;
 window.sockets = [];
 WebSocket.prototype.send = function(...args) {
   if (window.sockets.indexOf(this) === -1) {
-    window.sockets.push(this);
+      window.sockets.push(this);
+      console.log(window.sockets);
       this.addEventListener('message', function(event) {
       const message = event.data;
 
@@ -24,7 +25,7 @@ WebSocket.prototype.send = function(...args) {
           const jsonObject = JSON.parse(message);
           if(jsonObject.a == 12) {
           latestCaptch = jsonObject.p.vl[0][2];
-          console.log("code received: ");
+          console.log("code received: ",latestCaptch);
           } else {
               console.log(jsonObject.p);
           }
@@ -95,7 +96,6 @@ const workerUrl = URL.createObjectURL(blob);
 function checkResources() {
   var full = [];
   for (let resourceName of notFull) {
-      console.log(resourceName);
       var value = parseInt(document.getElementsByClassName('resource-'+ resourceName)[0].childNodes[0].textContent.replace(/\./g,''))
       if(value > 149000000) {
           console.log("Lagerkapazität erreicht: ", resourceName);
@@ -289,7 +289,7 @@ function stopCycle() {
     // Add a context menu option
     GM_registerMenuCommand('starte Produktion für Zement', function() {startCycle('cement')});
     GM_registerMenuCommand('starte Produktion für carbon', startCycle);
-    GM_registerMenuCommand('starte Produktion für Stahl', function() {startCycle('fuel')});
+    GM_registerMenuCommand('starte Produktion für Stahl', function() {startCycle('steel')});
     GM_registerMenuCommand('starte Produktion für Treibstoff', function() {startCycle('fuel')});
     GM_registerMenuCommand('stoppe Produktion', stopCycle);
 })();
