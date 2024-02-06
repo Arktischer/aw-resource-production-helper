@@ -17,7 +17,6 @@ window.sockets = [];
 WebSocket.prototype.send = function(...args) {
   if (window.sockets.indexOf(this) === -1) {
       window.sockets.push(this);
-      console.log(window.sockets);
       this.addEventListener('message', function(event) {
       const message = event.data;
 
@@ -25,9 +24,7 @@ WebSocket.prototype.send = function(...args) {
           const jsonObject = JSON.parse(message);
           if(jsonObject.a == 12) {
           latestCaptch = jsonObject.p.vl[0][2];
-          console.log("code received: ");
-          } else {
-              console.log(jsonObject.p);
+          console.log("code received");
           }
       }
       if (message.includes("gate_delta")) {
@@ -49,6 +46,7 @@ canvas.width = 200;
 canvas.height = 30;
 canvas.style.display = 'none';
 canvas.id = 'output'
+if(!document.body) alert("Fehler beim Laden des Scripts. Seite neu laden und bitte mir melden, will wissen ob das öfters vorkommt");
 document.body.appendChild(canvas);
 
 function getBase() {
@@ -104,7 +102,8 @@ function checkResources() {
   }
   notFull = notFull.filter(item => !full.includes(item));
   if(!notFull.includes(window.currentProduction)) {
-      if(notFull.length == 0) {
+      //stop by length 1 if you dont want to produce cement
+      if(notFull.length == 1) {
           cycle = false;
           alert("alle Lager voll");
       }
@@ -254,8 +253,35 @@ var cyleFunction;
 window.timer = 0;
 var cycles = 0;
 var resetTimer;
+var observer
+function closeInfobox() {
+    if(observer) return;//only adds observer once
+    var container = document.getElementById("main");
+//    document.styeSheets[3].rules[
+    observer = new MutationObserver(function(mutationsList, observer) {
+       for(var mutation of mutationsList) {
+            if(mutation.type === 'childList') {
+                for (var node of mutation.addedNodes) {
+                    if(node.nodeType === 1 && node.classList.contains('detailed-error-messages-mask')) {
+                           var nodes = node.querySelectorAll('.btn-armywars');
+                           if(nodes && nodes.length == 1) {
+                               nodes[0].click();
+                               console.log("Captcha Missclick notification closed");
+                           } else {
+                               alert("multiple buttons found, bitte mir melden");
+                           }
+                       }
+                }
+            }
+       }
+    })
+
+    var observerConfig = {childList: true};
+    observer.observe(container, observerConfig);
+}
 
 async function startCycle(resourceName = 'carbon') {
+  closeInfobox();
   if(cycling) {
       console.log("cycle already running. Set cycling = false");
       alert("Es wurde bereits eine Produktion gestartet. Wähle Produktion Stoppen, um etwas anderes zu Produzieren.")
@@ -272,13 +298,13 @@ async function startCycle(resourceName = 'carbon') {
       checkResources();
       produceAll(window.currentProduction);
       window.timer = 0;
-      while (window.timer < 305 && cycle) {
+      while (window.timer < 300 && cycle) {
           if(resetTimer) {
               window.timer = 0;
               resetTimer = false;
           }
           window.timer += await sleep(5000);
-          //console.log(window.timer);
+          console.log(window.timer);
       }
 
   }
@@ -300,4 +326,7 @@ function stopCycle() {
     GM_registerMenuCommand('starte Produktion für Stahl', function() {startCycle('steel')});
     GM_registerMenuCommand('starte Produktion für Treibstoff', function() {startCycle('fuel')});
     GM_registerMenuCommand('stoppe Produktion', stopCycle);
+    //sets observer to true, so that closeInfobox returns early
+    GM_registerMenuCommand('Captcha Infobox nicht automatisch schließen', function (){observer = 1});
+
 })();
