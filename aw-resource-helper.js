@@ -281,6 +281,7 @@ function closeInfobox() {
 }
 
 async function startCycle(resourceName = 'carbon') {
+  homeMapID = currentMapID;
   closeInfobox();
   if(cycling) {
       console.log("cycle already running. Set cycling = false");
