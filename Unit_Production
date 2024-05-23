@@ -1,0 +1,262 @@
+// ==UserScript==
+// @name         Unit Production
+// @namespace    http://tampermonkey.net/
+// @version      2024-02-06
+// @description  try to take over the world!
+// @author       You
+// @match        https://zone1.armywars.com/t
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=armywars.com
+// @grant        GM_registerMenuCommand
+// ==/UserScript==
+
+//get WebSocket connection
+const originalSend = WebSocket.prototype.send;
+window.sockets = [];
+
+//unit production parameter
+var latestProductionCommand = "";
+var mapID = "";
+var unitID = "";
+var baseID = ""
+var buildingQueuesMap = new Map();
+var currentMapID = 0;
+//sleeper code
+const workerCode = `self.onmessage = function(event) {
+const sleepTime = event.data;
+setTimeout(() => {
+  self.postMessage(sleepTime/1000);
+}, sleepTime);
+};`
+const blob = new Blob([workerCode], {type: 'application/javascript'});
+const workerUrl = URL.createObjectURL(blob);
+
+async function sleep(ms) {
+    //console.log("start timer with (ms): ", ms);
+  return await new Promise(resolve => {
+      const sleeper = new Worker(workerUrl);
+
+      sleeper.onmessage = function(event) {
+          resolve(event.data);
+          sleeper.terminate();
+      };
+
+      sleeper.postMessage(ms);
+  });
+
+  //return new Promise(resolve=>setTimeout(resolve, ms));
+}
+
+//override websocket send to get send information and websocket connection
+WebSocket.prototype.send = function(data) {
+  if (window.sockets.indexOf(this) === -1) {
+      window.sockets.push(this);
+
+       //listenter on receie to determine current Map
+    this.addEventListener('message', function(event) {
+      const message = event.data;
+
+      if (message.includes("gate_delta")) {
+          currentMapID = JSON.parse(message).p.r[0];
+          console.log("currentMapId for production changed to:",currentMapID);
+      }
+
+  })
+
+  }
+  var json = JSON.parse(data);
+
+
+
+  //checks if the intercepted message is a unit production call and if the production is manual
+  if(data.includes("object.produce") && json.p && json.p.r && json.p.p.command && json.p.p.base_id && baseFree(json.p.p.base_id)) {
+
+      latestProductionCommand = json;
+      mapID = json.p.r
+      unitID = json.p.p.command;
+      baseID = json.p.p.base_id;
+      console.log("on mapID",json.p.r);
+      console.log("with unitID",json.p.p.command);
+      console.log("with BaseID", json.p.p.base_id);
+     }
+  return originalSend.call(this, data);
+};
+
+
+//unit prdoction code
+function build(baseID, unitID, mapID) {
+    window.sockets[0].send(JSON.stringify({
+        "a": 13,
+        "c": 1,
+        "p": {
+            "c": "object.produce",
+            "r": mapID,
+            "p": {
+                "base_id": baseID,
+                "id": baseID,
+                "command": unitID
+            }
+        }
+    }))
+
+    console.log(unitID, ' produced')
+}
+
+async function buildN(time, count) {
+    var id = Symbol();
+    var info = {baseId: baseID, unitId: unitID, mapId: mapID, remaining: count, running: true};
+    buildingQueuesMap.set(id,info);
+    while(info.remaining > 0) {
+        if(!info.running) break;
+        while(info.running && currentMapID != info.mapId) await sleep(time * 1000 + 1000);
+        build(info.baseId, info.unitId, info.mapId);
+        info.remaining--;
+        await sleep(time * 1000 + 1000);
+    }
+    buildingQueuesMap.delete(id);
+    console.log(count, " Units of ", info.unitID, " ready at ", info.baseID)
+}
+
+async function buildingHelper(count) {
+    if(!count) count = prompt("Wie viele Einheiten sollen gebaut werden ?");
+    var time = 0;
+    switch(unitID) {
+        case 1:
+            time = 10;
+            break;
+        case 5:
+            time = 30;
+            break;
+        case 7:
+            time = 60;
+            break;
+        case 27:
+        case 29:
+            time = 120;
+            break;
+        case 21:
+        case 15:
+            time = 180;
+            break;
+        default:
+            time = prompt("Wie viele Sekunden braucht es die Einheit zu bauen ?");
+    }
+    if(time == 0) return;
+    buildN(time, count);
+}
+
+function showQueues() {
+    var message = "Folgende " + buildingQueuesMap.size + " Bauschleifen sind aktiv:\n";
+    for(var [key,value] of buildingQueuesMap.entries()) {
+        message = message + "baue "+ value.remaining +" Einheiten mit id " + value.unitId + " in Base " + value.baseId + "\n";
+    }
+    alert(message);
+}
+
+function stopQueues() {
+    for(var value of buildingQueuesMap.values()) {
+        value.running = false;
+    }
+    buildingQueuesMap.clear();
+}
+
+function baseFree(baseID) {
+    for(var value of buildingQueuesMap.values()) {
+        if(value.baseId == baseID) return false;
+    }
+    return true;
+}
+
+function requestPlatinium() {
+     var count = prompt("Wieviel Platinium möchtest du umtauschen ?");
+     var interrupt = JSON.stringify({
+  "a": 13,
+  "c": 1,
+  "p": {
+    "c": "object.remove",
+    "r": 75,
+    "p": {
+      "base_id": 2842841,
+      "id": 2842841,
+      "type": "extract"
+    }
+  }
+})
+     var produceZement = JSON.stringify({
+  "a": 13,
+  "c": 1,
+  "p": {
+    "c": "object.extract",
+    "r": 75,
+    "p": {
+      "base_id": 2842841,
+      "name": "cement",
+      "command": 2
+    }
+  }
+})
+     var requestExchange = JSON.stringify({
+  "a": 13,
+  "c": 1,
+  "p": {
+    "c": "object.req_exchange",
+    "r": currentMapID,
+    "p": {}
+  }
+})
+     var resetExchange = JSON.stringify({
+  "a": 12,
+  "c": 0,
+  "p": {
+    "vl": [
+      [
+        "amount_of_bought_platinium",
+        1,
+        11000
+      ],["user_info",5,{
+  "gold": 1537.7024666666284,
+  "military_points": 75000,
+  "global_bases": 50,
+  "groups_max": 116.8,
+  "economy_points": 3013,
+  "available_bases": 21,
+  "rank": 51,
+  "groups": 15,
+  "last_free_platinium": 170791368705
+}]
+    ]
+  }
+     })
+    var socket = window.sockets[0]
+     for(var i = 0; i < count; i ++) {
+         socket.send(requestExchange);
+
+        // sleep(500);
+     }
+}
+
+(function() {
+    'use strict';
+     console.log("started Unit Production Module")
+     GM_registerMenuCommand('Starte Einheitenproduktionsschleife', buildingHelper);
+     GM_registerMenuCommand('Stoppe alle Bauschleifen', stopQueues);
+     GM_registerMenuCommand('Liste alle Bauschleifen', showQueues);
+     GM_registerMenuCommand('Platinium umtauschen', requestPlatinium);
+
+    document.addEventListener('keypress', function(event) {
+           if(document.getElementsByClassName("modal-mask").length != 0) return;
+           if(event.key === 'x' || event.key === 'X') {
+               console.log("build with Hotkey");
+               buildingHelper(0);
+           }
+           if(event.key === 'y' || event.key === 'Y') {
+               console.log("build direkt with Hotkey");
+               buildingHelper(25);
+           }
+           if(event.key === 'c' || event.key === 'C') {
+
+               showQueues();
+           }
+           console.log(document.getElementsByClassName("modal-mask"));
+    })
+    // Your code here...
+})();
