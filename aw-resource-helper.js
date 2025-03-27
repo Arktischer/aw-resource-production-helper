@@ -7,7 +7,7 @@
 // @match        https://zone1.armywars.com/t
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=armywars.com
 // @require      https://docs.opencv.org/4.5.5/opencv.js
-// @run-at       document-start
+// @run-at       document-body
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
 console.log("Autocklicker script injected");
@@ -102,6 +102,8 @@ var cycling = false;
 var notFull = ['carbon','fuel','steel','cement'];
 var homeMapID = 0;
 var currentMapID = 0;
+var missclick = false;
+
 const validNames = ['carbon','fuel','steel','cement']
 window.currentProduction = '';
 
@@ -264,13 +266,24 @@ async function getNewestXY() {
 
 async function produceAll(resourceName) {
 
+    var missclickCounter = 0;
   for (var i = 0; i < baseIds.length; i++) {
       if(!cycle) return;
+      missclick = false;
       await produce(resourceName, baseIds[i]);
-      await sleep(500);
+      await sleep(500); //missclick might be set to true by closeCaptcha()
+      if(missclick) {
+          missclick = false;
+          missclickCounter++;
+          if (missclickCounter > baseIds.length) {
+              alert(missclickCounter + ' mal Captcha Fehler in einem Cyklus. Bitte mir erzählen');
+              break;
+          }
+          i--;
+      }
   }
   cycles++;
-  console.log(cycles, " cycles completed");
+  console.log(cycles, " cycle completed with ",missclickCounter, " captcha fail(s). Accuracy: ",(1 - (missclickCounter / baseIds.length)) * 100 , "%");
 }
 
 var cycle = true;
@@ -291,6 +304,7 @@ function closeInfobox() {
                            var nodes = node.querySelectorAll('.btn-armywars');
                            if(nodes && nodes.length == 1) {
                                nodes[0].click();
+                               missclick = true;
                                console.log("Captcha Missclick notification closed");
                            } else {
                                alert("multiple buttons found, bitte mir melden");
