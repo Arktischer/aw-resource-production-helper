@@ -10,23 +10,31 @@
 // @run-at       document-start
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
-console.log("startBuilding");
+console.log("Autocklicker script injected");
 
+//old websocket send function
 const originalSend = WebSocket.prototype.send;
+
 window.sockets = [];
+
+
+//override websocket.send
 WebSocket.prototype.send = function(...args) {
   if (window.sockets.indexOf(this) === -1) {
       window.sockets.push(this);
       this.addEventListener('message', function(event) {
       const message = event.data;
 
-      if (message.includes("captha") && latestCaptch == "") {
+          //intercept captcha codes
+      if (message.includes("captha") && message.includes(userID)) {
           const jsonObject = JSON.parse(message);
           if(jsonObject.a == 12) {
           latestCaptch = jsonObject.p.vl[0][2];
           console.log("code received");
           }
       }
+
+          //intercept map
       if (message.includes("gate_delta")) {
           currentMapID = JSON.parse(message).p.r[0];
           if(homeMapID == 0) {
@@ -35,20 +43,36 @@ WebSocket.prototype.send = function(...args) {
           }
       }
 
+          //intercept user code
+          if(message.includes('"un"')) {
+              userID = JSON.parse(message).p.id;
+              console.log('found new user id: ' + userID);
+          }
+
+
+      //try to intercept 'not-ready' message
+          if (message.includes('"a":29')) {
+              //console.log('message intercepted: ' + message);
+              //return;
+          }
+
   })
   }
   return originalSend.call(this, ...args);
 };
 
-
+//workaround to get base64 into a cv image
 const canvas = document.createElement('canvas');
 canvas.width = 200;
 canvas.height = 30;
 canvas.style.display = 'none';
 canvas.id = 'output'
+
+//script is executed before body is initialized
 if(!document.body) alert("Fehler beim Laden des Scripts. Seite neu laden und bitte mir melden, will wissen ob das öfters vorkommt");
 document.body.appendChild(canvas);
 
+//derive Base ids from minimap. enemy_100 colorblind mode
 function getBase() {
   var base_id = [];
   for (const enemy of document.getElementsByClassName('enemy enemy_8')) {
@@ -67,6 +91,7 @@ function getBase() {
 }
 
 var baseUnten = 833408;
+var userID = 0;
 var favID = 1;
 var latestCaptch = "";
 var latestXY = [0, 0];
@@ -80,6 +105,7 @@ var currentMapID = 0;
 const validNames = ['carbon','fuel','steel','cement']
 window.currentProduction = '';
 
+//weird sleep function, probably better solution
 const workerCode = `self.onmessage = function(event) {
 const sleepTime = event.data;
 setTimeout(() => {
@@ -88,7 +114,6 @@ setTimeout(() => {
 };`
 const blob = new Blob([workerCode], {type: 'application/javascript'});
 const workerUrl = URL.createObjectURL(blob);
-
 
 
 function checkResources() {
@@ -222,8 +247,8 @@ async function getNewestXY() {
       console.log("no captcha found or not on homeMap");
 
       if(latestCaptch == "") {
-          noCaptcha == 12 && alert("kein Captcha gefunden. Versuche einmal manuell Produktion zu starten");
-          noCaptcha++;
+          //noCaptcha == 12 && alert("kein Captcha gefunden. Versuche einmal manuell Produktion zu starten");
+          console.log('no captcha: ' + noCaptcha++);
       }
       resetTimer = true;
       await sleep(5000);
@@ -330,4 +355,64 @@ function stopCycle() {
     //sets observer to true, so that closeInfobox returns early
     GM_registerMenuCommand('Captcha Infobox nicht automatisch schließen', function (){observer = 1});
 
+})();
+
+
+
+//grok-generated: disable focus related events
+(function() {
+    'use strict';
+
+    // Step 1: Spoof visibility properties
+    // Make the tab appear always visible
+    Object.defineProperty(document, 'hidden', {
+        get: () => false,
+        configurable: true
+    });
+
+    Object.defineProperty(document, 'visibilityState', {
+        get: () => 'visible',
+        configurable: true
+    });
+
+    // Step 2: Block visibilitychange events
+    document.addEventListener('visibilitychange', (e) => {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        console.log('Blocked visibilitychange event');
+    }, { capture: true, passive: false });
+
+    // Step 3: Neutralize focus/blur events
+    window.onblur = () => {
+        console.log('Blur event ignored');
+    };
+    window.onfocus = () => {
+        console.log('Focus event ignored');
+    };
+    window.blur = () => {}; // No-op
+    window.focus = () => {}; // No-op
+
+    // Step 4: Intercept and block focus-related event listeners
+    const originalAddEventListener = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function(type, listener, options) {
+        if (type === 'blur' || type === 'focus' || type === 'visibilitychange') {
+            console.log(`Blocked ${type} event listener`);
+            return; // Do nothing
+        }
+        originalAddEventListener.call(this, type, listener, options);
+    };
+
+    // Step 5: Ensure requestAnimationFrame keeps running
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    window.requestAnimationFrame = function(callback) {
+        // If tab is hidden, fall back to setTimeout to keep the loop alive
+        if (document.hidden) {
+            setTimeout(() => callback(performance.now()), 16); // ~60 FPS
+        } else {
+            originalRequestAnimationFrame(callback);
+        }
+    };
+
+    // Optional: Log to confirm
+    console.log('Focus-related events disabled at browser level');
 })();
